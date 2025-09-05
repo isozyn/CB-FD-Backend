@@ -1,4 +1,6 @@
 // Entry point for Express backend
+require('dotenv').config(); // Load environment variables
+
 console.log('Starting CB-FD-Backend server...');
 
 const express = require('express');
@@ -17,12 +19,13 @@ console.log('Port configured:', PORT);
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? [
-        'https://your-netlify-site.netlify.app',
-        'https://your-custom-domain.com'
+        'https://starlit-croissant-5176b3.netlify.app',
+        process.env.NETLIFY_SITE_URL
       ] 
     : [
         'http://localhost:3000',
-        'http://localhost:3001'
+        'http://localhost:3001',
+        'https://starlit-croissant-5176b3.netlify.app'
       ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

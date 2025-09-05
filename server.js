@@ -27,6 +27,9 @@ const SCANII_API_URL = process.env.SCANII_API_URL || 'https://api-us1.scanii.com
 const JWT_SECRET = process.env.JWT_SECRET;
 const SESSION_SECRET = process.env.SESSION_SECRET;
 
+// Database configuration
+const DB_URL = process.env.DB_URL;
+
 // In-memory history (replace with DB for production)
 let history = [];
 
@@ -129,22 +132,12 @@ app.use((req, res, next) => {
 
 // Health check endpoint (Railway requirement)
 app.get('/health', (req, res) => {
-  const healthData = {
-    ok: true,
+  res.status(200).json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
-    environment: NODE_ENV,
-    port: PORT,
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    version: process.version
-  };
-  
-  // Optional: Add database health check
-  if (DB_URL) {
-    healthData.database = 'connected'; // You can add actual DB ping here
-  }
-  
-  res.status(200).json(healthData);
+    server: 'CB-FD-Backend',
+    version: '1.0.0'
+  });
 });
 
 // Root endpoint

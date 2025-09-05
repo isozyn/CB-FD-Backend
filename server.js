@@ -1,17 +1,34 @@
 // Production-ready Express server for Railway deployment
+require('dotenv').config(); // Load environment variables
+
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
+const multer = require('multer');
 
 const app = express();
+const upload = multer();
 
 // Environment variables with defaults
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const NETLIFY_SITE_URL = process.env.NETLIFY_SITE_URL; // Railway will inject this
+const NETLIFY_SITE_URL = process.env.NETLIFY_SITE_URL || 'https://starlit-croissant-5176b3.netlify.app';
 
-// Database and JWT secrets (Railway will inject these)
-const DB_URL = process.env.DB_URL;
+// API Configuration
+const REKA_API_KEY = process.env.REKA_API_KEY;
+const REKA_API_URL = process.env.REKA_API_URL || 'https://api.reka.ai/v1/chat/completions';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_API_URL = process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
+const SCANII_API_KEY = process.env.SCANII_API_KEY;
+const SCANII_API_SECRET = process.env.SCANII_API_SECRET || '';
+const SCANII_API_URL = process.env.SCANII_API_URL || 'https://api-us1.scanii.com/v2.2/files';
+
+// Security secrets
 const JWT_SECRET = process.env.JWT_SECRET;
+const SESSION_SECRET = process.env.SESSION_SECRET;
+
+// In-memory history (replace with DB for production)
+let history = [];
 
 // Production-ready CORS configuration
 const corsOptions = {
@@ -22,13 +39,14 @@ const corsOptions = {
     if (NODE_ENV === 'production') {
       // In production, only allow your Netlify site
       const allowedOrigins = [
-        NETLIFY_SITE_URL, // e.g., 'https://your-site.netlify.app'
-        // Add other production domains if needed
-      ].filter(Boolean); // Remove any undefined values
+        NETLIFY_SITE_URL,
+        'https://starlit-croissant-5176b3.netlify.app' // Fallback
+      ].filter(Boolean);
       
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
+        console.log('CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS'));
       }
     } else {
@@ -37,13 +55,15 @@ const corsOptions = {
         'http://localhost:3000',
         'http://localhost:3001',
         'http://127.0.0.1:3000',
-        'http://127.0.0.1:3001'
-      ];
+        'http://127.0.0.1:3001',
+        NETLIFY_SITE_URL
+      ].filter(Boolean);
       
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        console.log('CORS allowed development origin:', origin);
+        callback(null, true); // Allow all in development
       }
     }
   },
@@ -165,6 +185,345 @@ app.post('/api/auth/verify', (req, res) => {
   });
 });
 
+// --- File Analysis Endpoint (using Reka Flash 3 & Scanii) ---
+app.post('/analyze/file', upload.single('file'), async (req, res) => {
+  console.log('Received file analysis request:', req.file && req.file.originalname);
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
+    
+    let risk = 'low';
+    let confidence = 0.85;
+    let result = {};
+    
+    // Check if file is text-based for Reka Flash 3 analysis
+    const textBasedTypes = ['text/plain', 'text/csv', 'application/json', 'text/html', 'text/xml', 'application/pdf'];
+    const isTextBased = textBasedTypes.includes(file.mimetype) || file.originalname.match(/\.(txt|csv|json|html|xml|log|pdf)$/i);
+    
+    if (isTextBased && REKA_API_KEY) {
+      try {
+        console.log('Using Reka Flash 3 for text-based file analysis...');
+        const fileContent = file.buffer.toString('utf8');
+        
+        const rekaResponse = await axios.post(REKA_API_URL, {
+          model: 'reka-flash-3',
+          messages: [{
+            role: 'user',
+            content: `Analyze the following file content for spam, scam, phishing, fraud, malware, or security risks. 
+
+Instructions:
+- Rate the risk level as exactly 'low', 'medium', or 'high'
+- Provide a confidence score between 0.1 and 1.0
+- Look for suspicious patterns, URLs, email addresses, financial scams, phishing attempts
+- Consider bulk document analysis for CSVs and logs
+- Be thorough but concise
+
+File name: ${file.originalname}
+File type: ${file.mimetype}
+File size: ${file.size} bytes
+
+Content to analyze:
+${fileContent.substring(0, 30000)}`
+          }],
+          max_tokens: 800,
+          temperature: 0.1
+        }, {
+          headers: {
+            'Authorization': `Bearer ${REKA_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 20000
+        });
+        
+        const analysis = rekaResponse.data.choices[0].message.content;
+        console.log('Reka Flash 3 analysis completed');
+        
+        // Parse response
+        const lowerAnalysis = analysis.toLowerCase();
+        if (lowerAnalysis.includes('high risk') || lowerAnalysis.includes('dangerous')) {
+          risk = 'high';
+          confidence = 0.90;
+        } else if (lowerAnalysis.includes('medium risk') || lowerAnalysis.includes('suspicious')) {
+          risk = 'medium';
+          confidence = 0.80;
+        } else {
+          risk = 'low';
+          confidence = 0.85;
+        }
+        
+        result = {
+          analysis: 'reka-flash-3',
+          ai_analysis: analysis,
+          reason: 'AI-powered analysis using Reka Flash 3',
+          details: {
+            file_type: file.mimetype,
+            file_name: file.originalname,
+            file_size: file.size
+          }
+        };
+      } catch (rekaError) {
+        console.log('Reka Flash 3 API failed:', rekaError.message);
+        risk = 'medium';
+        confidence = 0.70;
+        result = {
+          analysis: 'fallback',
+          reason: 'AI analysis unavailable - basic heuristic used',
+          error: rekaError.message
+        };
+      }
+    } else {
+      // For binary files or when Reka is not available, use Scanii
+      if (SCANII_API_KEY) {
+        try {
+          console.log('Using Scanii for file scanning...');
+          const response = await axios.post(SCANII_API_URL, file.buffer, {
+            auth: { username: SCANII_API_KEY, password: SCANII_API_SECRET },
+            headers: { 'Content-Type': file.mimetype },
+            params: { filename: file.originalname },
+            timeout: 15000
+          });
+          
+          result = response.data;
+          risk = result.findings && result.findings.length > 0 ? 'high' : 'low';
+          confidence = 0.90;
+        } catch (scaniiError) {
+          console.log('Scanii API failed:', scaniiError.message);
+          risk = 'medium';
+          confidence = 0.60;
+          result = {
+            analysis: 'basic-fallback',
+            reason: 'File scanning services unavailable',
+            file_type: file.mimetype,
+            file_size: file.size
+          };
+        }
+      } else {
+        risk = 'medium';
+        confidence = 0.60;
+        result = {
+          analysis: 'no-api',
+          reason: 'No file scanning API configured',
+          file_type: file.mimetype,
+          file_size: file.size
+        };
+      }
+    }
+    
+    const historyEntry = {
+      id: Date.now(),
+      type: 'file',
+      filename: file.originalname,
+      size: file.size,
+      mimetype: file.mimetype,
+      risk,
+      confidence,
+      result,
+      timestamp: new Date().toISOString()
+    };
+    
+    history.unshift(historyEntry);
+    if (history.length > 100) history = history.slice(0, 100);
+    
+    res.json({ risk, confidence, result, historyId: historyEntry.id });
+    
+  } catch (error) {
+    console.error('File analysis error:', error);
+    res.status(500).json({
+      error: 'Analysis failed',
+      details: error.message,
+      risk: 'unknown',
+      confidence: 0.0
+    });
+  }
+});
+
+// --- Text Analysis Endpoint (using OpenRouter DeepSeek) ---
+app.post('/analyze/text', async (req, res) => {
+  console.log('Received text analysis request');
+  try {
+    const { text } = req.body;
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ error: 'No text provided' });
+    }
+    
+    let risk = 'low';
+    let confidence = 0.85;
+    let result = {};
+    
+    if (OPENROUTER_API_KEY) {
+      try {
+        console.log('Calling OpenRouter DeepSeek API...');
+        const response = await axios.post(OPENROUTER_API_URL, {
+          model: 'deepseek/deepseek-chat',
+          messages: [{
+            role: 'user',
+            content: `Classify this text as Spam, Scam, or Safe. Return a likelihood score from 0-100.
+
+Text to analyze: "${text}"
+
+Please provide your response in this exact format:
+Classification: [Spam/Scam/Safe]
+Score: [0-100]
+Reasoning: [Brief explanation]`
+          }],
+          max_tokens: 300,
+          temperature: 0.1
+        }, {
+          headers: {
+            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 15000
+        });
+        
+        const analysis = response.data.choices[0].message.content;
+        console.log('OpenRouter DeepSeek analysis completed');
+        
+        // Parse response
+        let classification = 'Safe';
+        let score = 0;
+        
+        const classificationMatch = analysis.match(/classification:\s*(spam|scam|safe)/i);
+        const scoreMatch = analysis.match(/score:\s*(\d+)/i);
+        
+        if (classificationMatch) classification = classificationMatch[1];
+        if (scoreMatch) score = parseInt(scoreMatch[1]);
+        
+        // Determine risk
+        const lowerClassification = classification.toLowerCase();
+        if (lowerClassification === 'scam' || score >= 71) {
+          risk = 'high';
+          confidence = 0.90;
+        } else if (lowerClassification === 'spam' || score >= 31) {
+          risk = 'medium';
+          confidence = 0.80;
+        } else {
+          risk = 'low';
+          confidence = 0.85;
+        }
+        
+        result = {
+          analysis: 'openrouter-deepseek',
+          classification: classification,
+          score: score,
+          ai_analysis: analysis,
+          reason: 'AI-powered analysis using OpenRouter DeepSeek'
+        };
+        
+      } catch (apiError) {
+        console.error('OpenRouter API error:', apiError.message);
+        risk = 'medium';
+        confidence = 0.70;
+        result = {
+          analysis: 'fallback',
+          reason: 'AI analysis unavailable',
+          error: apiError.message
+        };
+      }
+    } else {
+      risk = 'medium';
+      confidence = 0.60;
+      result = {
+        analysis: 'no-api',
+        reason: 'No text analysis API configured'
+      };
+    }
+    
+    const historyEntry = {
+      id: Date.now(),
+      type: 'text',
+      text: text.substring(0, 500),
+      risk,
+      confidence,
+      result,
+      timestamp: new Date().toISOString()
+    };
+    
+    history.unshift(historyEntry);
+    if (history.length > 100) history = history.slice(0, 100);
+    
+    res.json({ risk, confidence, result, historyId: historyEntry.id });
+    
+  } catch (error) {
+    console.error('Text analysis error:', error);
+    res.status(500).json({
+      error: 'Analysis failed',
+      details: error.message,
+      risk: 'unknown',
+      confidence: 0.0
+    });
+  }
+});
+
+// --- URL Analysis Endpoint (basic heuristic) ---
+app.post('/analyze/url', async (req, res) => {
+  console.log('Received URL analysis request');
+  try {
+    const { url } = req.body;
+    if (!url || !url.trim()) {
+      return res.status(400).json({ error: 'No URL provided' });
+    }
+    
+    // Basic heuristic analysis
+    const urlLower = url.toLowerCase();
+    const suspiciousPatterns = ['bit.ly', 'tinyurl', '.tk', '.ml', 'suspicious', 'phishing'];
+    const suspiciousCount = suspiciousPatterns.filter(pattern => urlLower.includes(pattern)).length;
+    
+    let risk = 'low';
+    let confidence = 0.75;
+    
+    if (suspiciousCount >= 2) {
+      risk = 'high';
+      confidence = 0.85;
+    } else if (suspiciousCount >= 1) {
+      risk = 'medium';
+      confidence = 0.80;
+    }
+    
+    const result = {
+      analysis: 'heuristic',
+      suspicious_patterns: suspiciousCount,
+      reason: `URL analysis based on pattern matching`,
+      url: url
+    };
+    
+    const historyEntry = {
+      id: Date.now(),
+      type: 'url',
+      url,
+      risk,
+      confidence,
+      result,
+      timestamp: new Date().toISOString()
+    };
+    
+    history.unshift(historyEntry);
+    if (history.length > 100) history = history.slice(0, 100);
+    
+    res.json({ risk, confidence, result, historyId: historyEntry.id });
+    
+  } catch (error) {
+    console.error('URL analysis error:', error);
+    res.status(500).json({
+      error: 'Analysis failed',
+      details: error.message,
+      risk: 'unknown',
+      confidence: 0.0
+    });
+  }
+});
+
+// --- History Endpoints ---
+app.get('/history', (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+  res.json(history.slice(0, limit));
+});
+
+app.delete('/history', (req, res) => {
+  history.length = 0;
+  res.json({ message: 'History cleared successfully', timestamp: new Date().toISOString() });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error occurred:', {
@@ -218,12 +577,15 @@ process.on('SIGINT', () => {
 
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running in ${NODE_ENV} mode`);
+  console.log(`🚀 CB-FD-Backend running in ${NODE_ENV} mode`);
   console.log(`📡 Listening on http://0.0.0.0:${PORT}`);
-  console.log(`🌍 CORS configured for: ${NODE_ENV === 'production' ? NETLIFY_SITE_URL || 'Not configured' : 'localhost development'}`);
+  console.log(`🌍 CORS configured for: ${NETLIFY_SITE_URL}`);
   console.log(`🔒 JWT Secret: ${JWT_SECRET ? 'Configured' : 'Not configured'}`);
-  console.log(`💾 Database: ${DB_URL ? 'Configured' : 'Not configured'}`);
+  console.log(`🤖 Reka Flash 3: ${REKA_API_KEY ? 'Configured' : 'Not configured'}`);
+  console.log(`🤖 OpenRouter DeepSeek: ${OPENROUTER_API_KEY ? 'Configured' : 'Not configured'}`);
+  console.log(`�️  Scanii Scanner: ${SCANII_API_KEY ? 'Configured' : 'Not configured'}`);
   console.log(`⏰ Started at: ${new Date().toISOString()}`);
+  console.log(`🔗 API Endpoints: /analyze/file, /analyze/text, /analyze/url, /history`);
 });
 
 module.exports = app;

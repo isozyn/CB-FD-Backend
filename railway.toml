@@ -1,0 +1,10 @@
+# Railway deployment configuration for backend
+
+[build]
+  command = "npm install"
+
+[deploy]
+  startCommand = "npm start"
+
+[env]
+  NODE_ENV = "production"

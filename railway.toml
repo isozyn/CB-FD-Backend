@@ -1,7 +1,7 @@
 # Railway deployment configuration for backend
 
 [build]
-  command = "npm install"
+  command = "npm install --production=false"
 
 [deploy]
   startCommand = "npm start"

@@ -6,6 +6,41 @@ const cors = require('cors');
 const axios = require('axios');
 const multer = require('multer');
 
+// Utility function to format dates for frontend
+function formatDateForFrontend(date = new Date()) {
+  const dateObj = new Date(date);
+  return {
+    iso: dateObj.toISOString(),
+    timestamp: dateObj.getTime(),
+    formatted: dateObj.toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }),
+    date: dateObj.toISOString().split('T')[0],
+    time: dateObj.toTimeString().split(' ')[0],
+    relative: getRelativeTime(dateObj)
+  };
+}
+
+function getRelativeTime(date) {
+  const now = new Date();
+  const diff = now - new Date(date);
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  
+  if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+  if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  return 'Just now';
+}
+
 const app = express();
 const upload = multer();
 
@@ -35,25 +70,42 @@ let history = [
   // Sample data to prevent frontend errors
   {
     id: Date.now() - 1000000,
+    input: 'Sample text analysis for testing the spam detection system',
     type: 'text',
-    text: 'Sample text analysis for testing the spam detection system',
-    content: 'Sample text analysis for testing the spam detection system',
-    message: 'Sample text analysis for testing the spam detection system',
-    title: 'Sample Text Analysis',
-    description: 'This is a sample text analysis entry',
     risk: 'low',
     confidence: 0.85,
+    date: new Date(Date.now() - 86400000).toISOString(),
+    timestamp: new Date(Date.now() - 86400000).toISOString(),
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
     result: {
       analysis: 'sample',
       classification: 'Safe',
       score: 15,
       reason: 'Sample data for testing - no actual threats detected'
     },
-    timestamp: new Date(Date.now() - 86400000).toISOString() // 1 day ago
+    // Additional fields for frontend compatibility
+    text: 'Sample text analysis for testing the spam detection system',
+    content: 'Sample text analysis for testing the spam detection system',
+    title: 'Sample Text Analysis',
+    description: 'This is a sample text analysis entry',
+    ...formatDateForFrontend(new Date(Date.now() - 86400000))
   },
   {
     id: Date.now() - 800000,
+    input: 'sample-document.txt',
     type: 'file',
+    risk: 'medium',
+    confidence: 0.70,
+    date: new Date(Date.now() - 43200000).toISOString(),
+    timestamp: new Date(Date.now() - 43200000).toISOString(),
+    createdAt: new Date(Date.now() - 43200000).toISOString(),
+    result: {
+      analysis: 'reka-flash-3',
+      classification: 'Suspicious',
+      score: 45,
+      reason: 'Sample file analysis - moderate risk patterns detected'
+    },
+    // Additional fields for frontend compatibility
     filename: 'sample-document.txt',
     originalname: 'sample-document.txt',
     text: 'Sample file content for analysis',
@@ -62,26 +114,17 @@ let history = [
     description: 'Analysis of uploaded text file',
     size: 1024,
     mimetype: 'text/plain',
-    risk: 'medium',
-    confidence: 0.70,
-    result: {
-      analysis: 'reka-flash-3',
-      classification: 'Suspicious',
-      score: 45,
-      reason: 'Sample file analysis - moderate risk patterns detected'
-    },
-    timestamp: new Date(Date.now() - 43200000).toISOString() // 12 hours ago
+    ...formatDateForFrontend(new Date(Date.now() - 43200000))
   },
   {
     id: Date.now() - 600000,
+    input: 'https://example.com/suspicious-link',
     type: 'url',
-    url: 'https://example.com/suspicious-link',
-    text: 'Analysis of suspicious URL',
-    content: 'https://example.com/suspicious-link',
-    title: 'URL Risk Assessment',
-    description: 'Suspicious link analysis',
     risk: 'high',
     confidence: 0.92,
+    date: new Date(Date.now() - 21600000).toISOString(),
+    timestamp: new Date(Date.now() - 21600000).toISOString(),
+    createdAt: new Date(Date.now() - 21600000).toISOString(),
     result: {
       analysis: 'heuristic',
       classification: 'Malicious',
@@ -89,25 +132,35 @@ let history = [
       suspicious_patterns: 2,
       reason: 'High-risk URL detected - multiple suspicious patterns found'
     },
-    timestamp: new Date(Date.now() - 21600000).toISOString() // 6 hours ago
+    // Additional fields for frontend compatibility
+    url: 'https://example.com/suspicious-link',
+    text: 'Analysis of suspicious URL',
+    content: 'https://example.com/suspicious-link',
+    title: 'URL Risk Assessment',
+    description: 'Suspicious link analysis',
+    ...formatDateForFrontend(new Date(Date.now() - 21600000))
   },
   {
     id: Date.now() - 400000,
+    input: 'Another sample text for comprehensive testing of the system capabilities',
     type: 'text',
-    text: 'Another sample text for comprehensive testing of the system capabilities',
-    content: 'Another sample text for comprehensive testing of the system capabilities',
-    message: 'Another sample text for comprehensive testing',
-    title: 'Additional Text Sample',
-    description: 'Second sample for testing purposes',
-    risk: 'low',
+    risk: 'none',
     confidence: 0.88,
+    date: new Date(Date.now() - 10800000).toISOString(),
+    timestamp: new Date(Date.now() - 10800000).toISOString(),
+    createdAt: new Date(Date.now() - 10800000).toISOString(),
     result: {
       analysis: 'openrouter-deepseek',
       classification: 'Safe',
       score: 8,
       reason: 'Clean text content - no threats detected'
     },
-    timestamp: new Date(Date.now() - 10800000).toISOString() // 3 hours ago
+    // Additional fields for frontend compatibility
+    text: 'Another sample text for comprehensive testing of the system capabilities',
+    content: 'Another sample text for comprehensive testing of the system capabilities',
+    title: 'Additional Text Sample',
+    description: 'Second sample for testing purposes',
+    ...formatDateForFrontend(new Date(Date.now() - 10800000))
   }
 ];
 
@@ -212,9 +265,10 @@ app.use((req, res, next) => {
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
-    timestamp: new Date().toISOString(),
     server: 'CB-FD-Backend',
-    version: '1.0.0'
+    version: '1.0.0',
+    ...formatDateForFrontend(),
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -267,91 +321,56 @@ app.post('/api/auth/verify', (req, res) => {
 app.get('/analytics', (req, res) => {
   try {
     // Generate analytics from history data
-    const totalAnalyses = history.length;
+    const total = history.length;
     const riskCounts = history.reduce((acc, item) => {
       acc[item.risk] = (acc[item.risk] || 0) + 1;
       return acc;
     }, {});
     
-    const typeCounts = history.reduce((acc, item) => {
-      acc[item.type] = (acc[item.type] || 0) + 1;
-      return acc;
-    }, {});
+    // Calculate percentages
+    const getPercent = (count) => total > 0 ? ((count / total) * 100).toFixed(1) + '%' : '0.0%';
     
-    // Recent activity (last 24 hours)
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentAnalyses = history.filter(item => 
-      new Date(item.timestamp) > yesterday
-    );
-    
-    // Risk distribution percentages
-    const riskDistribution = {
-      low: totalAnalyses > 0 ? ((riskCounts.low || 0) / totalAnalyses * 100).toFixed(1) : "0.0",
-      medium: totalAnalyses > 0 ? ((riskCounts.medium || 0) / totalAnalyses * 100).toFixed(1) : "0.0",
-      high: totalAnalyses > 0 ? ((riskCounts.high || 0) / totalAnalyses * 100).toFixed(1) : "0.0"
-    };
-    
-    // Ensure arrays are always returned for frontend
     const analytics = {
-      totalAnalyses,
-      riskCounts: {
-        low: riskCounts.low || 0,
-        medium: riskCounts.medium || 0,
-        high: riskCounts.high || 0
+      total: total,
+      high: {
+        count: riskCounts.high || 0,
+        percent: getPercent(riskCounts.high || 0)
       },
-      riskDistribution,
-      typeCounts: {
-        text: typeCounts.text || 0,
-        file: typeCounts.file || 0,
-        url: typeCounts.url || 0
+      medium: {
+        count: riskCounts.medium || 0,
+        percent: getPercent(riskCounts.medium || 0)
       },
-      recentActivity: {
-        last24Hours: recentAnalyses.length,
-        trend: recentAnalyses.length > 0 ? 'active' : 'quiet',
-        items: recentAnalyses || [] // Always provide array
+      low: {
+        count: riskCounts.low || 0,
+        percent: getPercent(riskCounts.low || 0)
       },
-      topRisks: history
-        .filter(item => item.risk === 'high')
-        .slice(0, 5)
-        .map(item => ({
-          id: item.id || Date.now(),
-          type: item.type || 'unknown',
-          timestamp: item.timestamp || new Date().toISOString(),
-          confidence: item.confidence || 0,
-          title: item.title || item.filename || 'Analysis Item',
-          description: item.description || 'No description available',
-          content: item.content || item.text || item.message || '',
-          preview: (item.text || item.content || item.message || item.filename || item.url || 'Unknown content').substring(0, 50) + '...',
-          risk: item.risk || 'unknown',
-          score: item.result?.score || 0
-        })),
-      history: history.map(item => ({
-        ...item,
-        title: item.title || item.filename || `${item.type} analysis`,
-        description: item.description || 'No description available',
-        content: item.content || item.text || item.message || '',
-        preview: (item.text || item.content || item.message || item.filename || item.url || 'Unknown').substring(0, 100) + '...'
-      })) || [], // Always provide full history array
-      recentItems: history.slice(0, 10).map(item => ({
-        ...item,
-        title: item.title || item.filename || `${item.type} analysis`,
-        description: item.description || 'No description available',
-        content: item.content || item.text || item.message || '',
-        preview: (item.text || item.content || item.message || item.filename || item.url || 'Unknown').substring(0, 50) + '...'
-      })) || [], // Recent items for dashboard
-      charts: {
-        riskTrend: Array.from({length: 7}, (_, i) => ({
-          date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          low: Math.floor(Math.random() * 10),
-          medium: Math.floor(Math.random() * 5),
-          high: Math.floor(Math.random() * 3)
-        })).reverse(),
-        typeDistribution: [
-          { name: 'Text', value: typeCounts.text || 0 },
-          { name: 'File', value: typeCounts.file || 0 },
-          { name: 'URL', value: typeCounts.url || 0 }
-        ]
+      none: {
+        count: riskCounts.none || 0,
+        percent: getPercent(riskCounts.none || 0)
       },
+      // Additional data for comprehensive analytics
+      breakdown: {
+        byType: {
+          text: history.filter(h => h.type === 'text').length,
+          file: history.filter(h => h.type === 'file').length,
+          url: history.filter(h => h.type === 'url').length
+        },
+        byRisk: {
+          high: riskCounts.high || 0,
+          medium: riskCounts.medium || 0,
+          low: riskCounts.low || 0,
+          none: riskCounts.none || 0
+        }
+      },
+      recentActivity: history.slice(0, 10).map(item => ({
+        id: item.id,
+        input: item.input,
+        type: item.type,
+        risk: item.risk,
+        confidence: item.confidence,
+        date: item.date,
+        result: item.result
+      })),
       systemStatus: {
         apis: {
           reka_configured: !!REKA_API_KEY,
@@ -369,18 +388,16 @@ app.get('/analytics', (req, res) => {
   } catch (error) {
     console.error('Analytics endpoint error:', error);
     res.status(200).json({
-      totalAnalyses: 0,
-      riskCounts: { low: 0, medium: 0, high: 0 },
-      riskDistribution: { low: "0.0", medium: "0.0", high: "0.0" },
-      typeCounts: { text: 0, file: 0, url: 0 },
-      recentActivity: { last24Hours: 0, trend: 'quiet', items: [] },
-      topRisks: [],
-      history: [],
-      recentItems: [],
-      charts: {
-        riskTrend: [],
-        typeDistribution: []
+      total: 0,
+      high: { count: 0, percent: '0.0%' },
+      medium: { count: 0, percent: '0.0%' },
+      low: { count: 0, percent: '0.0%' },
+      none: { count: 0, percent: '0.0%' },
+      breakdown: {
+        byType: { text: 0, file: 0, url: 0 },
+        byRisk: { high: 0, medium: 0, low: 0, none: 0 }
       },
+      recentActivity: [],
       systemStatus: {
         apis: { reka_configured: false, openrouter_configured: false, scanii_configured: false },
         uptime: 0,
@@ -519,14 +536,18 @@ ${fileContent.substring(0, 30000)}`
     
     const historyEntry = {
       id: Date.now(),
+      input: file.originalname, // Store filename as input
       type: 'file',
+      risk,
+      confidence,
+      date: new Date().toISOString(),
+      result,
+      // Additional fields for compatibility
       filename: file.originalname,
       size: file.size,
       mimetype: file.mimetype,
-      risk,
-      confidence,
-      result,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     };
     
     history.unshift(historyEntry);
@@ -639,12 +660,16 @@ Reasoning: [Brief explanation]`
     
     const historyEntry = {
       id: Date.now(),
+      input: text, // Store full text as input
       type: 'text',
-      text: text.substring(0, 500),
       risk,
       confidence,
+      date: new Date().toISOString(),
       result,
-      timestamp: new Date().toISOString()
+      // Additional fields for compatibility
+      text: text.substring(0, 500),
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     };
     
     history.unshift(historyEntry);
@@ -697,12 +722,16 @@ app.post('/analyze/url', async (req, res) => {
     
     const historyEntry = {
       id: Date.now(),
+      input: url, // Store URL as input
       type: 'url',
-      url,
       risk,
       confidence,
+      date: new Date().toISOString(),
       result,
-      timestamp: new Date().toISOString()
+      // Additional fields for compatibility
+      url,
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     };
     
     history.unshift(historyEntry);
@@ -728,14 +757,21 @@ app.get('/history', (req, res) => {
     // Ensure history is always an array
     const historyData = Array.isArray(history) ? history : [];
     const result = historyData.slice(0, limit).map(item => ({
-      ...item,
-      title: item.title || item.filename || `${item.type || 'unknown'} analysis`,
-      description: item.description || 'No description available',
-      content: item.content || item.text || item.message || '',
-      preview: (item.text || item.content || item.message || item.filename || item.url || 'Unknown content').substring(0, 100) + '...',
-      risk: item.risk || 'unknown',
-      confidence: item.confidence || 0,
-      timestamp: item.timestamp || new Date().toISOString()
+      id: item.id,
+      input: item.input, // Required: the original content that was analyzed
+      type: item.type,   // Required: "text", "url", or "file"
+      risk: item.risk,   // Required: risk level
+      confidence: item.confidence, // Required: confidence score
+      date: item.date,   // Required: ISO 8601 timestamp
+      result: item.result, // Required: analysis results
+      // Additional compatible fields
+      timestamp: item.timestamp || item.date,
+      createdAt: item.createdAt || item.date,
+      text: item.text,
+      filename: item.filename,
+      url: item.url,
+      title: item.title || item.filename || `${item.type} analysis`,
+      description: item.description || 'No description available'
     }));
     
     // Return simple array format for frontend compatibility

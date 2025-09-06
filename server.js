@@ -41,6 +41,87 @@ function getRelativeTime(date) {
   return 'Just now';
 }
 
+// Function to generate recommended actions based on risk level
+function getRecommendedActions(risk, type, analysisDetails = {}) {
+  const actions = [];
+  
+  switch(risk.toLowerCase()) {
+    case 'high':
+      actions.push('🚨 IMMEDIATE ACTION REQUIRED');
+      if (type === 'text') {
+        actions.push('• Do not share or forward this content');
+        actions.push('• Report as spam/scam if received via email');
+        actions.push('• Block the sender if applicable');
+        actions.push('• Warn others about this potential threat');
+      } else if (type === 'file') {
+        actions.push('• Do not open or execute this file');
+        actions.push('• Delete the file immediately');
+        actions.push('• Run a full system antivirus scan');
+        actions.push('• Report to your IT security team');
+      } else if (type === 'url') {
+        actions.push('• Do not visit this URL');
+        actions.push('• Do not click any links to this domain');
+        actions.push('• Report the URL to authorities');
+        actions.push('• Warn others about this malicious link');
+      }
+      actions.push('• Consider changing passwords if you interacted with this content');
+      break;
+      
+    case 'medium':
+      actions.push('⚠️ CAUTION ADVISED');
+      if (type === 'text') {
+        actions.push('• Verify the sender\'s identity before responding');
+        actions.push('• Do not provide personal information');
+        actions.push('• Cross-check information from other sources');
+        actions.push('• Be wary of urgent requests for money/data');
+      } else if (type === 'file') {
+        actions.push('• Scan the file with updated antivirus software');
+        actions.push('• Open only in a secure, isolated environment');
+        actions.push('• Verify the file source is trustworthy');
+        actions.push('• Monitor system behavior after opening');
+      } else if (type === 'url') {
+        actions.push('• Verify the URL destination before clicking');
+        actions.push('• Check for HTTPS and valid certificates');
+        actions.push('• Avoid entering sensitive information');
+        actions.push('• Use a sandbox environment if necessary');
+      }
+      actions.push('• Stay alert for suspicious behavior');
+      break;
+      
+    case 'low':
+      actions.push('✅ LOW RISK - MINIMAL PRECAUTIONS');
+      actions.push('• Content appears relatively safe');
+      actions.push('• Standard security practices still apply');
+      if (type === 'text') {
+        actions.push('• Still verify sender identity for sensitive requests');
+      } else if (type === 'file') {
+        actions.push('• Keep antivirus software updated');
+      } else if (type === 'url') {
+        actions.push('• Ensure secure connection (HTTPS)');
+      }
+      actions.push('• Remain vigilant for any unusual activity');
+      break;
+      
+    case 'none':
+    default:
+      actions.push('✅ NO THREATS DETECTED');
+      actions.push('• Content appears safe to use');
+      actions.push('• No immediate action required');
+      actions.push('• Continue following standard security practices');
+      if (type === 'text') {
+        actions.push('• Text content shows no malicious patterns');
+      } else if (type === 'file') {
+        actions.push('• File appears clean and safe');
+      } else if (type === 'url') {
+        actions.push('• URL appears legitimate');
+      }
+      actions.push('• Stay informed about emerging threats');
+      break;
+  }
+  
+  return actions;
+}
+
 const app = express();
 const upload = multer();
 
@@ -553,7 +634,18 @@ ${fileContent.substring(0, 30000)}`
     history.unshift(historyEntry);
     if (history.length > 100) history = history.slice(0, 100);
     
-    res.json({ risk, confidence, result, historyId: historyEntry.id });
+    // Add recommended actions to the response
+    const recommendedActions = getRecommendedActions(risk, 'file', result);
+    
+    res.json({ 
+      risk, 
+      confidence, 
+      result: {
+        ...result,
+        recommendedActions
+      }, 
+      historyId: historyEntry.id 
+    });
     
   } catch (error) {
     console.error('File analysis error:', error);
@@ -675,7 +767,18 @@ Reasoning: [Brief explanation]`
     history.unshift(historyEntry);
     if (history.length > 100) history = history.slice(0, 100);
     
-    res.json({ risk, confidence, result, historyId: historyEntry.id });
+    // Add recommended actions to the response
+    const recommendedActions = getRecommendedActions(risk, 'text', result);
+    
+    res.json({ 
+      risk, 
+      confidence, 
+      result: {
+        ...result,
+        recommendedActions
+      }, 
+      historyId: historyEntry.id 
+    });
     
   } catch (error) {
     console.error('Text analysis error:', error);
@@ -737,7 +840,18 @@ app.post('/analyze/url', async (req, res) => {
     history.unshift(historyEntry);
     if (history.length > 100) history = history.slice(0, 100);
     
-    res.json({ risk, confidence, result, historyId: historyEntry.id });
+    // Add recommended actions to the response
+    const recommendedActions = getRecommendedActions(risk, 'url', result);
+    
+    res.json({ 
+      risk, 
+      confidence, 
+      result: {
+        ...result,
+        recommendedActions
+      }, 
+      historyId: historyEntry.id 
+    });
     
   } catch (error) {
     console.error('URL analysis error:', error);

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Connection Tester</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        .input-group { margin: 10px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #005a8b; }
+        .result { background: white; padding: 15px; border-radius: 4px; border-left: 4px solid #007cba; margin: 10px 0; }
+        .error { border-left-color: #e74c3c; }
+        .success { border-left-color: #27ae60; }
+    </style>
+</head>
+<body>
+    <h1>🔗 Backend Connection Tester</h1>
+    <p>Use this tool to test if your Railway backend is connected and working.</p>
+    
+    <div class="container">
+        <h3>1. Backend URL</h3>
+        <div class="input-group">
+            <label for="backendUrl">Railway Backend URL:</label>
+            <input type="text" id="backendUrl" placeholder="https://your-app-name.railway.app" value="">
+        </div>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <div id="healthResult"></div>
+    </div>
+
+    <div class="container">
+        <h3>2. Text Analysis Test</h3>
+        <div class="input-group">
+            <label for="testText">Text to Analyze:</label>
+            <textarea id="testText" rows="4" placeholder="Enter text to test spam/scam detection...">This is a test message to check if the backend is working properly.</textarea>
+        </div>
+        <button onclick="testTextAnalysis()">Analyze Text</button>
+        <div id="textResult"></div>
+    </div>
+
+    <div class="container">
+        <h3>3. File Upload Test</h3>
+        <div class="input-group">
+            <label for="testFile">Select File:</label>
+            <input type="file" id="testFile">
+        </div>
+        <button onclick="testFileAnalysis()">Analyze File</button>
+        <div id="fileResult"></div>
+    </div>
+
+    <script>
+        async function testHealth() {
+            const url = document.getElementById('backendUrl').value;
+            const resultDiv = document.getElementById('healthResult');
+            
+            if (!url) {
+                resultDiv.innerHTML = '<div class="result error">Please enter your Railway backend URL first!</div>';
+                return;
+            }
+            
+            try {
+                resultDiv.innerHTML = '<div class="result">Testing health endpoint...</div>';
+                
+                const response = await fetch(`${url}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h4>✅ Health Check Passed!</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <h4>❌ Health Check Failed</h4>
+                            <p>Status: ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h4>❌ Connection Failed</h4>
+                        <p>Error: ${error.message}</p>
+                        <p>Make sure your backend URL is correct and the server is running.</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testTextAnalysis() {
+            const url = document.getElementById('backendUrl').value;
+            const text = document.getElementById('testText').value;
+            const resultDiv = document.getElementById('textResult');
+            
+            if (!url) {
+                resultDiv.innerHTML = '<div class="result error">Please enter your Railway backend URL first!</div>';
+                return;
+            }
+            
+            if (!text.trim()) {
+                resultDiv.innerHTML = '<div class="result error">Please enter some text to analyze!</div>';
+                return;
+            }
+            
+            try {
+                resultDiv.innerHTML = '<div class="result">Analyzing text...</div>';
+                
+                const response = await fetch(`${url}/analyze/text`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h4>✅ Text Analysis Complete!</h4>
+                            <p><strong>Risk Level:</strong> ${data.risk}</p>
+                            <p><strong>Confidence:</strong> ${(data.confidence * 100).toFixed(1)}%</p>
+                            <details>
+                                <summary>Full Response</summary>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <h4>❌ Text Analysis Failed</h4>
+                            <p>Status: ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h4>❌ Request Failed</h4>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testFileAnalysis() {
+            const url = document.getElementById('backendUrl').value;
+            const fileInput = document.getElementById('testFile');
+            const resultDiv = document.getElementById('fileResult');
+            
+            if (!url) {
+                resultDiv.innerHTML = '<div class="result error">Please enter your Railway backend URL first!</div>';
+                return;
+            }
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = '<div class="result error">Please select a file to analyze!</div>';
+                return;
+            }
+            
+            try {
+                resultDiv.innerHTML = '<div class="result">Analyzing file...</div>';
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                const response = await fetch(`${url}/analyze/file`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h4>✅ File Analysis Complete!</h4>
+                            <p><strong>Risk Level:</strong> ${data.risk}</p>
+                            <p><strong>Confidence:</strong> ${(data.confidence * 100).toFixed(1)}%</p>
+                            <details>
+                                <summary>Full Response</summary>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <h4>❌ File Analysis Failed</h4>
+                            <p>Status: ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h4>❌ Request Failed</h4>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -36,28 +36,78 @@ let history = [
   {
     id: Date.now() - 1000000,
     type: 'text',
-    text: 'Sample text analysis',
+    text: 'Sample text analysis for testing the spam detection system',
+    content: 'Sample text analysis for testing the spam detection system',
+    message: 'Sample text analysis for testing the spam detection system',
+    title: 'Sample Text Analysis',
+    description: 'This is a sample text analysis entry',
     risk: 'low',
     confidence: 0.85,
     result: {
       analysis: 'sample',
-      reason: 'Sample data for testing'
+      classification: 'Safe',
+      score: 15,
+      reason: 'Sample data for testing - no actual threats detected'
     },
     timestamp: new Date(Date.now() - 86400000).toISOString() // 1 day ago
   },
   {
-    id: Date.now() - 500000,
+    id: Date.now() - 800000,
     type: 'file',
-    filename: 'sample.txt',
+    filename: 'sample-document.txt',
+    originalname: 'sample-document.txt',
+    text: 'Sample file content for analysis',
+    content: 'Sample file content for analysis',
+    title: 'Sample File Analysis',
+    description: 'Analysis of uploaded text file',
     size: 1024,
     mimetype: 'text/plain',
     risk: 'medium',
     confidence: 0.70,
     result: {
-      analysis: 'sample',
-      reason: 'Sample file analysis'
+      analysis: 'reka-flash-3',
+      classification: 'Suspicious',
+      score: 45,
+      reason: 'Sample file analysis - moderate risk patterns detected'
     },
     timestamp: new Date(Date.now() - 43200000).toISOString() // 12 hours ago
+  },
+  {
+    id: Date.now() - 600000,
+    type: 'url',
+    url: 'https://example.com/suspicious-link',
+    text: 'Analysis of suspicious URL',
+    content: 'https://example.com/suspicious-link',
+    title: 'URL Risk Assessment',
+    description: 'Suspicious link analysis',
+    risk: 'high',
+    confidence: 0.92,
+    result: {
+      analysis: 'heuristic',
+      classification: 'Malicious',
+      score: 85,
+      suspicious_patterns: 2,
+      reason: 'High-risk URL detected - multiple suspicious patterns found'
+    },
+    timestamp: new Date(Date.now() - 21600000).toISOString() // 6 hours ago
+  },
+  {
+    id: Date.now() - 400000,
+    type: 'text',
+    text: 'Another sample text for comprehensive testing of the system capabilities',
+    content: 'Another sample text for comprehensive testing of the system capabilities',
+    message: 'Another sample text for comprehensive testing',
+    title: 'Additional Text Sample',
+    description: 'Second sample for testing purposes',
+    risk: 'low',
+    confidence: 0.88,
+    result: {
+      analysis: 'openrouter-deepseek',
+      classification: 'Safe',
+      score: 8,
+      reason: 'Clean text content - no threats detected'
+    },
+    timestamp: new Date(Date.now() - 10800000).toISOString() // 3 hours ago
   }
 ];
 
@@ -264,14 +314,31 @@ app.get('/analytics', (req, res) => {
         .filter(item => item.risk === 'high')
         .slice(0, 5)
         .map(item => ({
-          id: item.id,
-          type: item.type,
-          timestamp: item.timestamp,
-          confidence: item.confidence,
-          preview: item.text ? item.text.substring(0, 50) + '...' : item.filename || 'Unknown'
+          id: item.id || Date.now(),
+          type: item.type || 'unknown',
+          timestamp: item.timestamp || new Date().toISOString(),
+          confidence: item.confidence || 0,
+          title: item.title || item.filename || 'Analysis Item',
+          description: item.description || 'No description available',
+          content: item.content || item.text || item.message || '',
+          preview: (item.text || item.content || item.message || item.filename || item.url || 'Unknown content').substring(0, 50) + '...',
+          risk: item.risk || 'unknown',
+          score: item.result?.score || 0
         })),
-      history: history || [], // Always provide full history array
-      recentItems: history.slice(0, 10) || [], // Recent items for dashboard
+      history: history.map(item => ({
+        ...item,
+        title: item.title || item.filename || `${item.type} analysis`,
+        description: item.description || 'No description available',
+        content: item.content || item.text || item.message || '',
+        preview: (item.text || item.content || item.message || item.filename || item.url || 'Unknown').substring(0, 100) + '...'
+      })) || [], // Always provide full history array
+      recentItems: history.slice(0, 10).map(item => ({
+        ...item,
+        title: item.title || item.filename || `${item.type} analysis`,
+        description: item.description || 'No description available',
+        content: item.content || item.text || item.message || '',
+        preview: (item.text || item.content || item.message || item.filename || item.url || 'Unknown').substring(0, 50) + '...'
+      })) || [], // Recent items for dashboard
       charts: {
         riskTrend: Array.from({length: 7}, (_, i) => ({
           date: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -660,7 +727,16 @@ app.get('/history', (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     // Ensure history is always an array
     const historyData = Array.isArray(history) ? history : [];
-    const result = historyData.slice(0, limit);
+    const result = historyData.slice(0, limit).map(item => ({
+      ...item,
+      title: item.title || item.filename || `${item.type || 'unknown'} analysis`,
+      description: item.description || 'No description available',
+      content: item.content || item.text || item.message || '',
+      preview: (item.text || item.content || item.message || item.filename || item.url || 'Unknown content').substring(0, 100) + '...',
+      risk: item.risk || 'unknown',
+      confidence: item.confidence || 0,
+      timestamp: item.timestamp || new Date().toISOString()
+    }));
     
     // Return simple array format for frontend compatibility
     res.json(result);

@@ -149,7 +149,14 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     endpoints: {
       health: '/health',
-      api: '/api/*'
+      analytics: '/analytics',
+      api: '/api/*',
+      analyze: {
+        text: '/analyze/text',
+        file: '/analyze/file',
+        url: '/analyze/url'
+      },
+      history: '/history'
     }
   });
 });
@@ -176,6 +183,82 @@ app.post('/api/auth/verify', (req, res) => {
     message: 'Auth endpoint ready',
     configured: true 
   });
+});
+
+// Analytics endpoint
+app.get('/analytics', (req, res) => {
+  try {
+    // Generate analytics from history data
+    const totalAnalyses = history.length;
+    const riskCounts = history.reduce((acc, item) => {
+      acc[item.risk] = (acc[item.risk] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const typeCounts = history.reduce((acc, item) => {
+      acc[item.type] = (acc[item.type] || 0) + 1;
+      return acc;
+    }, {});
+    
+    // Recent activity (last 24 hours)
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentAnalyses = history.filter(item => 
+      new Date(item.timestamp) > yesterday
+    );
+    
+    // Risk distribution percentages
+    const riskDistribution = {
+      low: ((riskCounts.low || 0) / totalAnalyses * 100).toFixed(1),
+      medium: ((riskCounts.medium || 0) / totalAnalyses * 100).toFixed(1),
+      high: ((riskCounts.high || 0) / totalAnalyses * 100).toFixed(1)
+    };
+    
+    const analytics = {
+      totalAnalyses,
+      riskCounts: {
+        low: riskCounts.low || 0,
+        medium: riskCounts.medium || 0,
+        high: riskCounts.high || 0
+      },
+      riskDistribution,
+      typeCounts: {
+        text: typeCounts.text || 0,
+        file: typeCounts.file || 0,
+        url: typeCounts.url || 0
+      },
+      recentActivity: {
+        last24Hours: recentAnalyses.length,
+        trend: recentAnalyses.length > 0 ? 'active' : 'quiet'
+      },
+      topRisks: history
+        .filter(item => item.risk === 'high')
+        .slice(0, 5)
+        .map(item => ({
+          id: item.id,
+          type: item.type,
+          timestamp: item.timestamp,
+          confidence: item.confidence
+        })),
+      systemStatus: {
+        apis: {
+          reka_configured: !!REKA_API_KEY,
+          openrouter_configured: !!OPENROUTER_API_KEY,
+          scanii_configured: !!SCANII_API_KEY
+        },
+        uptime: process.uptime(),
+        environment: NODE_ENV
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(analytics);
+  } catch (error) {
+    console.error('Analytics endpoint error:', error);
+    res.status(500).json({
+      error: 'Failed to generate analytics',
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // --- File Analysis Endpoint (using Reka Flash 3 & Scanii) ---

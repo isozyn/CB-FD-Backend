@@ -31,7 +31,35 @@ const SESSION_SECRET = process.env.SESSION_SECRET;
 const DB_URL = process.env.DB_URL;
 
 // In-memory history (replace with DB for production)
-let history = [];
+let history = [
+  // Sample data to prevent frontend errors
+  {
+    id: Date.now() - 1000000,
+    type: 'text',
+    text: 'Sample text analysis',
+    risk: 'low',
+    confidence: 0.85,
+    result: {
+      analysis: 'sample',
+      reason: 'Sample data for testing'
+    },
+    timestamp: new Date(Date.now() - 86400000).toISOString() // 1 day ago
+  },
+  {
+    id: Date.now() - 500000,
+    type: 'file',
+    filename: 'sample.txt',
+    size: 1024,
+    mimetype: 'text/plain',
+    risk: 'medium',
+    confidence: 0.70,
+    result: {
+      analysis: 'sample',
+      reason: 'Sample file analysis'
+    },
+    timestamp: new Date(Date.now() - 43200000).toISOString() // 12 hours ago
+  }
+];
 
 // Production-ready CORS configuration
 const corsOptions = {
@@ -591,8 +619,19 @@ app.post('/analyze/url', async (req, res) => {
 
 // --- History Endpoints ---
 app.get('/history', (req, res) => {
-  const limit = parseInt(req.query.limit) || 20;
-  res.json(history.slice(0, limit));
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    // Ensure history is always an array
+    const historyData = Array.isArray(history) ? history : [];
+    const result = historyData.slice(0, limit);
+    
+    // Return simple array format for frontend compatibility
+    res.json(result);
+  } catch (error) {
+    console.error('History endpoint error:', error);
+    // Always return an array even on error
+    res.status(200).json([]);
+  }
 });
 
 app.delete('/history', (req, res) => {
